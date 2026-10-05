@@ -48,14 +48,14 @@ socket.on("room:update",r=>{
   const me=r.players.find(p=>p.id===socket.id);
 
   if(me){
-    if($("playerScore")) $("playerScore").textContent=me.score;
-    if($("playerCoins")) $("playerCoins").textContent=me.coins;
-    if($("playerStreak")) $("playerStreak").textContent=me.streak+" 🔥";
-    if($("mgPlayerScore")) $("mgPlayerScore").textContent=me.score;
-    if($("mgPlayerCoins")) $("mgPlayerCoins").textContent=me.coins;
-    if($("mgPlayerStreak")) $("mgPlayerStreak").textContent=me.streak+" 🔥";
-    renderPowers(me);
-  }
+  if($("playerScore")) $("playerScore").textContent=me.score;
+  if($("playerCoins")) $("playerCoins").textContent=me.coins;
+  if($("playerStreak")) $("playerStreak").textContent=me.streak+" 🔥";
+  if($("mgPlayerScore")) $("mgPlayerScore").textContent=me.score;
+  if($("mgPlayerCoins")) $("mgPlayerCoins").textContent=me.coins;
+  if($("mgPlayerStreak")) $("mgPlayerStreak").textContent=me.streak+" 🔥";
+  renderPowers(me);
+}
 });
 
 function renderPlayers(ps){$("lobbyPlayers").innerHTML=ps.map(p=>`<div class="player"><span class="av">${esc(p.avatar)}</span><span>${esc(p.name)}</span></div>`).join("")}
