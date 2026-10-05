@@ -36,11 +36,15 @@ socket.on("room:update",r=>{
  $("classProgress").style.width=(r.players.length?100*r.players.filter(p=>p.answered).length/r.players.length:0)+"%";
  renderPlayers(r.players);renderBoard(r.players);
  const me=r.players.find(p=>p.id===socket.id);
- if(me){
-  $("playerScore").textContent=me.score;$("playerCoins").textContent=me.coins;$("playerStreak").textContent=me.streak+" 🔥";
-  $("mgPlayerScore").textContent=me.score;$("mgPlayerCoins").textContent=me.coins;$("mgPlayerStreak").textContent=me.streak+" 🔥";
+if(me){
+  if($("playerScore")) $("playerScore").textContent=me.score;
+  if($("playerCoins")) $("playerCoins").textContent=me.coins;
+  if($("playerStreak")) $("playerStreak").textContent=me.streak+" 🔥";
+  if($("mgPlayerScore")) $("mgPlayerScore").textContent=me.score;
+  if($("mgPlayerCoins")) $("mgPlayerCoins").textContent=me.coins;
+  if($("mgPlayerStreak")) $("mgPlayerStreak").textContent=me.streak+" 🔥";
   renderPowers(me);
- }
+}
 });
 
 function renderPlayers(ps){$("lobbyPlayers").innerHTML=ps.map(p=>`<div class="player"><span class="av">${esc(p.avatar)}</span><span>${esc(p.name)}</span></div>`).join("")}
@@ -144,8 +148,8 @@ socket.on("minigame:choice",d=>{if(role==="player")$("mgPlayerStatus").textConte
 socket.on("minigame:reveal",d=>{
  clearInterval(timer);$("mgHostNext").disabled=false;
  let secretText=d.type==="target"?`🎯 Secret target: ${d.secret}`:d.type==="coinflip"?`🪙 The coin landed: ${String(d.secret).toUpperCase()}`:`🏦 Jackpot vault: ${["A","B","C"][Number(d.secret)-1]}`;
- $("mgHostHint").textContent=secretText;
- $("mgPlayerStatus").textContent=secretText;
+$("mgHostHint").textContent=secretText;
+if($("mgPlayerStatus")) $("mgPlayerStatus").textContent=secretText;
  const sorted=[...d.results].sort((a,b)=>b.delta-a.delta);
  $("mgHostResults").innerHTML=sorted.map(x=>`<div class="rank"><b>${esc(x.avatar)}</b><span>${esc(x.name)} — ${esc(x.message)}</span><strong>${x.delta>=0?"+":""}${x.delta} pts</strong></div>`).join("");
  const me=d.results.find(x=>x.id===socket.id);
