@@ -160,14 +160,34 @@ function setupMiniGameButtons(d){
 }
 
 socket.on("minigame:start",d=>{
- clearInterval(timer);
- $("mgHostName").textContent=d.name;$("mgHostTitle").textContent=d.name;$("mgHostDesc").textContent=d.desc;
- $("mgHostHint").textContent=d.type==="target"?"The secret target is hidden until the reveal.":d.type==="coinflip"?"The coin is hidden until the reveal.":"One vault is a jackpot, one is a small stash, and one is a trap.";
- $("mgHostResults").innerHTML="";
- $("mgHostNext").disabled=true;
- $("mgPlayerName").textContent=d.name;$("mgPlayerTitle").textContent=d.name;$("mgPlayerDesc").textContent=d.desc;$("mgPlayerStatus").textContent="";
- setupMiniGameButtons(d);miniCountdown(d.duration);
- if(role==="host")show("minigameHost");else show("minigamePlayer");
+  clearInterval(timer);
+
+  if($("mgHostName")) $("mgHostName").textContent=d.name;
+  if($("mgHostTitle")) $("mgHostTitle").textContent=d.name;
+  if($("mgHostDesc")) $("mgHostDesc").textContent=d.desc;
+
+  if($("mgHostHint")){
+    $("mgHostHint").textContent=
+      d.type==="target"
+        ?"The secret target is hidden until the reveal."
+        :d.type==="coinflip"
+          ?"The coin is hidden until the reveal."
+          :"One vault is a jackpot, one is a small stash, and one is a trap.";
+  }
+
+  if($("mgHostResults")) $("mgHostResults").innerHTML="";
+  if($("mgHostNext")) $("mgHostNext").disabled=true;
+
+  if($("mgPlayerName")) $("mgPlayerName").textContent=d.name;
+  if($("mgPlayerTitle")) $("mgPlayerTitle").textContent=d.name;
+  if($("mgPlayerDesc")) $("mgPlayerDesc").textContent=d.desc;
+  if($("mgPlayerStatus")) $("mgPlayerStatus").textContent="";
+
+  setupMiniGameButtons(d);
+  miniCountdown(d.duration);
+
+  if(role==="host") show("minigameHost");
+  else show("minigamePlayer");
 });
 
 socket.on("minigame:choice",d=>{if(role==="player")$("mgPlayerStatus").textContent="🔒 Choice locked in!"});
