@@ -2,6 +2,7 @@ const express=require("express");
 const http=require("http");
 const path=require("path");
 const {Server}=require("socket.io");
+
 const app=express(), server=http.createServer(app), io=new Server(server);
 app.use(express.static(path.join(__dirname,"public")));
 const PORT=process.env.PORT||3000;
@@ -39,89 +40,238 @@ const POWERUPS=[
 {name:"FREEZE",cost:180,desc:"Cut the next question timer by 3 seconds for everyone else.",type:"freeze"}
 ];
 
+const MINIGAMES=["target","coinflip","heist"];
+const MINIGAME_INFO={
+ target:{name:"TARGET RUSH",desc:"Pick a target. The secret target is revealed when time runs out!",duration:10},
+ coinflip:{name:"COIN FLIP",desc:"Choose heads or tails. Guess correctly to win coins!",duration:8},
+ heist:{name:"BANK HEIST",desc:"Choose a vault. One has a huge bonus, one has a trap, one has a smaller prize.",duration:10}
+};
+
 const rooms=new Map();
+
 function code(){let c;do{c=Math.random().toString(36).slice(2,7).toUpperCase()}while(rooms.has(c));return c}
-function pub(r){return {code:r.code,phase:r.phase,index:r.index,total:r.questions.length,duration:r.duration,event:r.event?{name:r.event.name,desc:r.event.desc}:null,players:[...r.players.values()].map(p=>({id:p.id,name:p.name,avatar:p.avatar,score:p.score,coins:p.coins,streak:p.streak,answered:p.answered,powerups:p.powerups}))}}
+function playerView(p){return {id:p.id,name:p.name,avatar:p.avatar,score:p.score,coins:p.coins,streak:p.streak,answered:p.answered,powerups:p.powerups}}
+function pub(r){return {code:r.code,phase:r.phase,index:r.index,total:r.questions.length,duration:r.duration,event:r.event?{name:r.event.name,desc:r.event.desc}:null,minigame:r.minigame?{type:r.minigame.type,name:r.minigame.name,desc:r.minigame.desc,duration:r.minigame.duration}:null,players:[...r.players.values()].map(playerView)}}
 function emit(r){io.to(r.code).emit("room:update",pub(r))}
 function rankings(r){return [...r.players.values()].sort((a,b)=>b.score-a.score)}
+
 function begin(r){
- clearTimeout(r.timer);r.phase="question";r.started=Date.now();
+ clearTimeout(r.timer);
+ r.phase="question";
+ r.started=Date.now();
  for(const p of r.players.values()){p.answered=false;p.lastCorrect=false}
  let duration=r.event?.type==="speed"?8:r.duration;
  if([...r.players.values()].some(p=>p.pendingFreeze)) duration=Math.max(6,duration-3);
  r.currentDuration=duration;
- io.to(r.code).emit("question:start",{index:r.index,total:r.questions.length,question:r.questions[r.index].q,choices:r.questions[r.index].choices,duration,event:r.event?{name:r.event.name,desc:r.event.desc}:null});
- emit(r);r.timer=setTimeout(()=>reveal(r),duration*1000)
+ const q=r.questions[r.index];
+ io.to(r.code).emit("question:start",{index:r.index,total:r.questions.length,question:q.q,choices:q.choices,duration,event:r.event?{name:r.event.name,desc:r.event.desc}:null});
+ emit(r);
+ r.timer=setTimeout(()=>reveal(r),duration*1000);
 }
+
 function reveal(r){
- if(!rooms.has(r.code))return;clearTimeout(r.timer);r.phase="reveal";
+ if(!rooms.has(r.code))return;
+ clearTimeout(r.timer);
+ r.phase="reveal";
  const q=r.questions[r.index];
  io.to(r.code).emit("question:reveal",{index:r.index,total:r.questions.length,answer:q.answer,explanation:q.explanation,correctChoice:q.choices[q.answer],leaderboard:rankings(r).map(p=>({name:p.name,avatar:p.avatar,score:p.score,coins:p.coins}))});
- emit(r)
+ emit(r);
 }
+
 function grantEvent(r){
  r.event=null;
  if(Math.random()<0.72)r.event=EVENTS[Math.floor(Math.random()*EVENTS.length)];
 }
+
 function resetScores(r){
- for(const p of r.players.values()){p.score=0;p.coins=0;p.streak=0;p.answered=false;p.powerups=Object.fromEntries(POWERUPS.map(x=>[x.type,0]));p.pendingDouble=false;p.pendingFreeze=false;p.pendingShield=false}
+ for(const p of r.players.values()){
+  p.score=0;p.coins=100;p.streak=0;p.answered=false;p.powerups=Object.fromEntries(POWERUPS.map(x=>[x.type,0]));
+  p.pendingDouble=false;p.pendingFreeze=false;p.pendingShield=false;p.pendingSteal=false;
+ }
+}
+
+function startMinigame(r){
+ clearTimeout(r.timer);
+ const type=MINIGAMES[Math.floor(Math.random()*MINIGAMES.length)];
+ const info=MINIGAME_INFO[type];
+ r.phase="minigame";
+ r.minigame={type,name:info.name,desc:info.desc,duration:info.duration,started:Date.now(),choices:new Map(),resolved:false};
+ if(type==="target")r.minigame.secret=1+Math.floor(Math.random()*5);
+ if(type==="coinflip")r.minigame.secret=Math.random()<0.5?"heads":"tails";
+ if(type==="heist")r.minigame.secret=1+Math.floor(Math.random()*3);
+ io.to(r.code).emit("minigame:start",{
+  type,name:info.name,desc:info.desc,duration:info.duration,
+  targetChoices:type==="target"?[1,2,3,4,5]:null,
+  choices:type==="coinflip"?["heads","tails"]:type==="heist"?["A","B","C"]:null
+ });
+ emit(r);
+ r.timer=setTimeout(()=>resolveMinigame(r),info.duration*1000);
+}
+
+function resolveMinigame(r){
+ if(!rooms.has(r.code)||r.phase!=="minigame"||!r.minigame)return;
+ clearTimeout(r.timer);
+ const g=r.minigame;
+ const results=[];
+ for(const p of r.players.values()){
+  const choice=g.choices.get(p.id);
+  let delta=0,coins=0,message="No pick";
+  if(g.type==="target" && choice){
+   const distance=Math.abs(Number(choice)-g.secret);
+   if(distance===0){delta=600;coins=350;message="Bullseye!";}
+   else if(distance===1){delta=250;coins=180;message="So close!";}
+   else {delta=50;coins=60;message="Missed the target.";}
+  }else if(g.type==="coinflip" && choice){
+   if(choice===g.secret){delta=350;coins=300;message=`${g.secret.toUpperCase()} wins!`;}
+   else {delta=-100;coins=0;message=`It was ${g.secret.toUpperCase()}.`;}
+  }else if(g.type==="heist" && choice){
+   const c=Number(choice);
+   if(c===g.secret){delta=450;coins=500;message="Jackpot vault!";}
+   else if(Math.abs(c-g.secret)===1){delta=150;coins=150;message="Small stash!";}
+   else {delta=-200;coins=0;message="Trap vault!";}
+  }
+  p.score=Math.max(0,p.score+delta);
+  p.coins=Math.max(0,p.coins+coins);
+  results.push({id:p.id,name:p.name,avatar:p.avatar,choice,delta,coins,message,score:p.score,totalCoins:p.coins});
+ }
+ r.minigame.resolved=true;
+ r.phase="minigameReveal";
+ io.to(r.code).emit("minigame:reveal",{
+  type:g.type,
+  secret:g.secret,
+  results,
+  leaderboard:rankings(r).map(p=>({name:p.name,avatar:p.avatar,score:p.score,coins:p.coins}))
+ });
+ emit(r);
 }
 
 io.on("connection",s=>{
  s.on("host:create",({duration=15}={})=>{
-  const c=code();const r={code:c,host:s.id,phase:"lobby",index:0,duration:Math.max(8,Math.min(30,Number(duration)||15)),currentDuration:Number(duration)||15,questions:QUESTIONS,event:null,players:new Map(),timer:null};
-  rooms.set(c,r);s.join(c);s.data.room=c;s.data.role="host";s.emit("host:created",{code:c});emit(r)
+  const c=code();
+  const r={code:c,host:s.id,phase:"lobby",index:0,duration:Math.max(8,Math.min(30,Number(duration)||15)),currentDuration:Number(duration)||15,questions:QUESTIONS,event:null,minigame:null,players:new Map(),timer:null};
+  rooms.set(c,r);s.join(c);s.data.room=c;s.data.role="host";s.emit("host:created",{code:c});emit(r);
  });
+
  s.on("player:join",({code:c,name,avatar="A"})=>{
-  c=String(c||"").trim().toUpperCase();name=String(name||"").trim().replace(/\s+/g," ").slice(0,18);
-  const r=rooms.get(c);if(!r)return s.emit("join:error","Room not found.");if(r.phase!=="lobby")return s.emit("join:error","That game has already started.");if(!name)return s.emit("join:error","Enter a nickname.");
+  c=String(c||"").trim().toUpperCase();
+  name=String(name||"").trim().replace(/\s+/g," ").slice(0,18);
+  const r=rooms.get(c);
+  if(!r)return s.emit("join:error","Room not found.");
+  if(r.phase!=="lobby")return s.emit("join:error","That game has already started.");
+  if(!name)return s.emit("join:error","Enter a nickname.");
   if([...r.players.values()].some(p=>p.name.toLowerCase()===name.toLowerCase()))return s.emit("join:error","That nickname is already taken.");
-  const p={id:s.id,name,avatar:String(avatar).slice(0,2),score:0,coins:100,streak:0,answered:false,lastCorrect:false,powerups:Object.fromEntries(POWERUPS.map(x=>[x.type,0])),pendingDouble:false,pendingFreeze:false,pendingShield:false};
-  r.players.set(s.id,p);s.join(c);s.data.room=c;s.data.role="player";s.emit("player:joined",{code:c,name,avatar:p.avatar});emit(r)
+  const p={id:s.id,name,avatar:String(avatar).slice(0,2),score:0,coins:100,streak:0,answered:false,lastCorrect:false,powerups:Object.fromEntries(POWERUPS.map(x=>[x.type,0])),pendingDouble:false,pendingFreeze:false,pendingShield:false,pendingSteal:false};
+  r.players.set(s.id,p);s.join(c);s.data.room=c;s.data.role="player";s.emit("player:joined",{code:c,name,avatar:p.avatar});emit(r);
  });
+
  s.on("host:start",()=>{
-  const r=rooms.get(s.data.room);if(!r||r.host!==s.id||r.phase!=="lobby")return;if(!r.players.size)return;
-  r.index=0;grantEvent(r);begin(r)
+  const r=rooms.get(s.data.room);
+  if(!r||r.host!==s.id||r.phase!=="lobby"||!r.players.size)return;
+  r.index=0;grantEvent(r);begin(r);
  });
+
  s.on("player:powerup",({type})=>{
-  const r=rooms.get(s.data.room),p=r?.players.get(s.id);if(!r||!p||r.phase!=="question")return;
+  const r=rooms.get(s.data.room),p=r?.players.get(s.id);
+  if(!r||!p||r.phase!=="question")return;
   const item=POWERUPS.find(x=>x.type===type);if(!item||!(p.powerups[type]>0))return;
-  p.powerups[type]--;p.coins=Math.max(0,p.coins);
+  p.powerups[type]--;
   if(type==="double")p.pendingDouble=true;
   if(type==="shield")p.pendingShield=true;
-  if(type==="freeze"){p.pendingFreeze=true}
+  if(type==="freeze")p.pendingFreeze=true;
   if(type==="steal")p.pendingSteal=true;
-  s.emit("powerup:used",{type});emit(r)
+  s.emit("powerup:used",{type});emit(r);
  });
+
  s.on("player:buy",({type})=>{
-  const r=rooms.get(s.data.room),p=r?.players.get(s.id),item=POWERUPS.find(x=>x.type===type);if(!r||!p||!item)return;
+  const r=rooms.get(s.data.room),p=r?.players.get(s.id),item=POWERUPS.find(x=>x.type===type);
+  if(!r||!p||!item)return;
   if(p.coins<item.cost)return s.emit("shop:error","Not enough coins.");
-  p.coins-=item.cost;p.powerups[type]++;s.emit("shop:ok",{type});emit(r)
+  p.coins-=item.cost;p.powerups[type]++;s.emit("shop:ok",{type});emit(r);
  });
+
  s.on("player:answer",({choice})=>{
-  const r=rooms.get(s.data.room),p=r?.players.get(s.id);if(!r||!p||r.phase!=="question"||p.answered)return;
-  const q=r.questions[r.index],selected=Number(choice);if(!Number.isInteger(selected)||selected<0||selected>=q.choices.length)return;
-  p.answered=true;const correct=selected===q.answer;p.lastCorrect=correct;
+  const r=rooms.get(s.data.room),p=r?.players.get(s.id);
+  if(!r||!p||r.phase!=="question"||p.answered)return;
+  const q=r.questions[r.index],selected=Number(choice);
+  if(!Number.isInteger(selected)||selected<0||selected>=q.choices.length)return;
+  p.answered=true;
+  const correct=selected===q.answer;p.lastCorrect=correct;
   if(correct){
-   p.streak++;let elapsed=Date.now()-r.started;let speed=Math.max(0,1-elapsed/(r.currentDuration*1000));let pts=400+Math.round(600*speed)+Math.min(800,(p.streak-1)*100);
+   p.streak++;
+   let elapsed=Date.now()-r.started;
+   let speed=Math.max(0,1-elapsed/(r.currentDuration*1000));
+   let pts=400+Math.round(600*speed)+Math.min(800,(p.streak-1)*100);
    if(p.pendingDouble){pts*=2;p.pendingDouble=false}
-   if(r.event?.type==="double")p.coins+=30;
    if(r.event?.type==="bonus")pts+=250;
    if(r.event?.type==="streak"&&p.streak>=2)pts+=300;
-   p.score+=pts;p.coins+=50+Math.min(50,p.streak*5);
+   p.score+=pts;
+   p.coins+=50+Math.min(50,p.streak*5);
+   if(r.event?.type==="double")p.coins+=50+Math.min(50,p.streak*5);
+   if(r.event?.type==="shield"&&rankings(r).indexOf(p)<3)p.pendingShield=true;
    if(p.pendingSteal){
-    const targets=rankings(r).filter(x=>x.id!==p.id&&x.score>0);if(targets.length){const t=targets[Math.floor(Math.random()*targets.length)];const stolen=Math.max(50,Math.round(t.score*.15));if(!t.pendingShield){t.score=Math.max(0,t.score-stolen);p.score+=stolen}}
+    const targets=rankings(r).filter(x=>x.id!==p.id&&x.score>0);
+    if(targets.length){
+     const t=targets[Math.floor(Math.random()*targets.length)];
+     const stolen=Math.max(50,Math.round(t.score*.15));
+     if(!t.pendingShield){t.score=Math.max(0,t.score-stolen);p.score+=stolen}
+    }
     p.pendingSteal=false;
    }
-  }else{p.streak=0}
-  s.emit("answer:result",{correct,correctChoice:q.choices[q.answer],score:p.score,coins:p.coins,streak:p.streak});emit(r)
+  }else p.streak=0;
+  s.emit("answer:result",{correct,correctChoice:q.choices[q.answer],score:p.score,coins:p.coins,streak:p.streak});emit(r);
  });
+
+ s.on("player:minigameChoice",({choice})=>{
+  const r=rooms.get(s.data.room),p=r?.players.get(s.id);
+  if(!r||!p||r.phase!=="minigame"||r.minigame.choices.has(p.id))return;
+  let ok=false;
+  if(r.minigame.type==="target")ok=Number.isInteger(Number(choice))&&Number(choice)>=1&&Number(choice)<=5;
+  if(r.minigame.type==="coinflip")ok=["heads","tails"].includes(choice);
+  if(r.minigame.type==="heist")ok=["1","2","3"].includes(String(choice));
+  if(!ok)return;
+  r.minigame.choices.set(p.id,choice);
+  s.emit("minigame:choice",{choice});
+  emit(r);
+ });
+
  s.on("host:next",()=>{
-  const r=rooms.get(s.data.room);if(!r||r.host!==s.id||r.phase!=="reveal")return;
-  if(r.index>=r.questions.length-1){r.phase="finished";io.to(r.code).emit("game:finished",{leaderboard:rankings(r).map((p,i)=>({rank:i+1,name:p.name,avatar:p.avatar,score:p.score,coins:p.coins}))});emit(r);return}
-  for(const p of r.players.values())p.pendingFreeze=false; r.index++;grantEvent(r);begin(r)
+  const r=rooms.get(s.data.room);
+  if(!r||r.host!==s.id||r.phase!=="reveal")return;
+  if(r.index>=r.questions.length-1){startMinigame(r);return}
+  for(const p of r.players.values())p.pendingFreeze=false;
+  r.index++;
+  grantEvent(r);
+  begin(r);
  });
- s.on("host:reset",()=>{const r=rooms.get(s.data.room);if(!r||r.host!==s.id)return;clearTimeout(r.timer);r.phase="lobby";r.index=0;r.event=null;resetScores(r);emit(r)});
- s.on("disconnect",()=>{const r=rooms.get(s.data.room);if(!r)return;if(r.host===s.id){r.host=null;io.to(r.code).emit("host:left")}if(r.players.delete(s.id))emit(r);if(!r.host&&!r.players.size){clearTimeout(r.timer);rooms.delete(r.code)}})
+
+ s.on("host:minigameNext",()=>{
+  const r=rooms.get(s.data.room);
+  if(!r||r.host!==s.id||r.phase!=="minigameReveal")return;
+  r.minigame=null;
+  r.phase="question";
+  if(r.index>=r.questions.length-1){
+   r.phase="finished";
+   io.to(r.code).emit("game:finished",{leaderboard:rankings(r).map((p,i)=>({rank:i+1,name:p.name,avatar:p.avatar,score:p.score,coins:p.coins}))});
+   emit(r);
+   return;
+  }
+  for(const p of r.players.values())p.pendingFreeze=false;
+  r.index++;
+  grantEvent(r);
+  begin(r);
+ });
+
+ s.on("host:reset",()=>{
+  const r=rooms.get(s.data.room);if(!r||r.host!==s.id)return;
+  clearTimeout(r.timer);r.phase="lobby";r.index=0;r.event=null;r.minigame=null;resetScores(r);emit(r);
+ });
+
+ s.on("disconnect",()=>{
+  const r=rooms.get(s.data.room);if(!r)return;
+  if(r.host===s.id){r.host=null;io.to(r.code).emit("host:left")}
+  if(r.players.delete(s.id))emit(r);
+  if(!r.host&&!r.players.size){clearTimeout(r.timer);rooms.delete(r.code)}
+ });
 });
+
 server.listen(PORT,()=>console.log("Running on "+PORT));
