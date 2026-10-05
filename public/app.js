@@ -47,14 +47,14 @@ socket.on("room:update",r=>{
 
   const me=r.players.find(p=>p.id===socket.id);
 
-  if(me){
+const me=r.players.find(p=>p.id===socket.id);
+
+if(me){
   if($("playerScore")) $("playerScore").textContent=me.score;
   if($("playerCoins")) $("playerCoins").textContent=me.coins;
   if($("playerStreak")) $("playerStreak").textContent=me.streak+" 🔥";
- if(me){
   if($("mgPlayerCoins")) $("mgPlayerCoins").textContent=me.totalCoins;
-  if($("playerScore")) $("playerScore").textContent=me.score;
-  if($("playerCoins")) $("playerCoins").textContent=me.totalCoins;
+  renderPowers(me);
 }
 });
 
