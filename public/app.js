@@ -162,7 +162,9 @@ socket.on("minigame:reveal",d=>{
 $("mgHostHint").textContent=secretText;
 if($("mgPlayerStatus")) $("mgPlayerStatus").textContent=secretText;
  const sorted=[...d.results].sort((a,b)=>b.delta-a.delta);
- $("mgHostResults").innerHTML=sorted.map(x=>`<div class="rank"><b>${esc(x.avatar)}</b><span>${esc(x.name)} — ${esc(x.message)}</span><strong>${x.delta>=0?"+":""}${x.delta} pts</strong></div>`).join("");
+ if($("mgHostResults")){
+  $("mgHostResults").innerHTML=sorted.map(x=>`<div class="rank"><b>${esc(x.avatar)}</b><span>${esc(x.name)} — ${esc(x.message)}</span><strong>${x.delta>=0?"+":""}${x.delta} pts</strong></div>`).join("");
+}
  const me=d.results.find(x=>x.id===socket.id);
 
 if(me){
