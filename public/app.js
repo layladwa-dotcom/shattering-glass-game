@@ -26,25 +26,36 @@ $("startGame").onclick=()=>socket.emit("host:start");
 $("resetLobby").onclick=()=>socket.emit("host:reset");
 
 socket.on("room:update",r=>{
- state=r;
- $("playerCount").textContent=r.players.length;
- $("hostPlayers").textContent=r.players.length;
- $("mgHostPlayers").textContent=r.players.length;
- $("lobbyStatus").textContent=r.players.length+" online";
- $("answeredCount").textContent=r.players.filter(p=>p.answered).length+" answered";
- $("classAnswered").textContent=r.players.filter(p=>p.answered).length+" answered";
- $("classProgress").style.width=(r.players.length?100*r.players.filter(p=>p.answered).length/r.players.length:0)+"%";
- renderPlayers(r.players);renderBoard(r.players);
- const me=r.players.find(p=>p.id===socket.id);
-if(me){
-  if($("playerScore")) $("playerScore").textContent=me.score;
-  if($("playerCoins")) $("playerCoins").textContent=me.coins;
-  if($("playerStreak")) $("playerStreak").textContent=me.streak+" 🔥";
-  if($("mgPlayerScore")) $("mgPlayerScore").textContent=me.score;
-  if($("mgPlayerCoins")) $("mgPlayerCoins").textContent=me.coins;
-  if($("mgPlayerStreak")) $("mgPlayerStreak").textContent=me.streak+" 🔥";
-  renderPowers(me);
-}
+  state=r;
+
+  if($("playerCount")) $("playerCount").textContent=r.players.length;
+  if($("hostPlayers")) $("hostPlayers").textContent=r.players.length;
+  if($("mgHostPlayers")) $("mgHostPlayers").textContent=r.players.length;
+  if($("lobbyStatus")) $("lobbyStatus").textContent=r.players.length+" online";
+  if($("answeredCount")) $("answeredCount").textContent=r.players.filter(p=>p.answered).length+" answered";
+  if($("classAnswered")) $("classAnswered").textContent=r.players.filter(p=>p.answered).length+" answered";
+
+  if($("classProgress")){
+    $("classProgress").style.width=
+      (r.players.length
+        ? 100*r.players.filter(p=>p.answered).length/r.players.length
+        : 0)+"%";
+  }
+
+  renderPlayers(r.players);
+  renderBoard(r.players);
+
+  const me=r.players.find(p=>p.id===socket.id);
+
+  if(me){
+    if($("playerScore")) $("playerScore").textContent=me.score;
+    if($("playerCoins")) $("playerCoins").textContent=me.coins;
+    if($("playerStreak")) $("playerStreak").textContent=me.streak+" 🔥";
+    if($("mgPlayerScore")) $("mgPlayerScore").textContent=me.score;
+    if($("mgPlayerCoins")) $("mgPlayerCoins").textContent=me.coins;
+    if($("mgPlayerStreak")) $("mgPlayerStreak").textContent=me.streak+" 🔥";
+    renderPowers(me);
+  }
 });
 
 function renderPlayers(ps){$("lobbyPlayers").innerHTML=ps.map(p=>`<div class="player"><span class="av">${esc(p.avatar)}</span><span>${esc(p.name)}</span></div>`).join("")}
@@ -153,7 +164,13 @@ if($("mgPlayerStatus")) $("mgPlayerStatus").textContent=secretText;
  const sorted=[...d.results].sort((a,b)=>b.delta-a.delta);
  $("mgHostResults").innerHTML=sorted.map(x=>`<div class="rank"><b>${esc(x.avatar)}</b><span>${esc(x.name)} — ${esc(x.message)}</span><strong>${x.delta>=0?"+":""}${x.delta} pts</strong></div>`).join("");
  const me=d.results.find(x=>x.id===socket.id);
- if(me){$("mgPlayerScore").textContent=me.score;$("mgPlayerCoins").textContent=me.totalCoins;$("playerScore").textContent=me.score;$("playerCoins").textContent=me.totalCoins}
+
+if(me){
+  if($("mgPlayerScore")) $("mgPlayerScore").textContent=me.score;
+  if($("mgPlayerCoins")) $("mgPlayerCoins").textContent=me.totalCoins;
+  if($("playerScore")) $("playerScore").textContent=me.score;
+  if($("playerCoins")) $("playerCoins").textContent=me.totalCoins;
+}
 });
 
 $("mgHostNext").onclick=()=>socket.emit("host:minigameNext");
