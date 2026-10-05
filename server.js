@@ -237,13 +237,18 @@ io.on("connection",s=>{
  s.on("host:next",()=>{
   const r=rooms.get(s.data.room);
   if(!r||r.host!==s.id||r.phase!=="reveal")return;
-  if(r.index>=r.questions.length-1){startMinigame(r);return}
+
+  // Mini-games after questions 5, 10, and 15
+  if([4,9,14].includes(r.index)){
+    startMinigame(r);
+    return;
+  }
+
   for(const p of r.players.values())p.pendingFreeze=false;
   r.index++;
   grantEvent(r);
   begin(r);
- });
-
+});
  s.on("host:minigameNext",()=>{
   const r=rooms.get(s.data.room);
   if(!r||r.host!==s.id||r.phase!=="minigameReveal")return;
