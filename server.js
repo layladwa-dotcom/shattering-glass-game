@@ -234,8 +234,9 @@ io.on("connection",s=>{
   emit(r);
  });
 
- s.on("host:next",()=>{
+s.on("host:next",()=>{
   const r=rooms.get(s.data.room);
+
   if(!r||r.host!==s.id||r.phase!=="reveal")return;
 
   // Mini-games after questions 5, 10, and 15
@@ -245,8 +246,11 @@ io.on("connection",s=>{
   }
 
   for(const p of r.players.values())p.pendingFreeze=false;
+
   r.index++;
+
   grantEvent(r);
+
   begin(r);
 });
  s.on("host:minigameNext",()=>{
