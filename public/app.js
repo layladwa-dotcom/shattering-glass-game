@@ -161,8 +161,9 @@ socket.on("minigame:reveal",d=>{
  let secretText=d.type==="target"?`🎯 Secret target: ${d.secret}`:d.type==="coinflip"?`🪙 The coin landed: ${String(d.secret).toUpperCase()}`:`🏦 Jackpot vault: ${["A","B","C"][Number(d.secret)-1]}`;
 $("mgHostHint").textContent=secretText;
 if($("mgPlayerStatus")) $("mgPlayerStatus").textContent=secretText;
- const sorted=[...d.results].sort((a,b)=>b.delta-a.delta);
- if($("mgHostResults")){
+const sorted=[...d.results].sort((a,b)=>b.delta-a.delta);
+
+if($("mgHostResults")){
   $("mgHostResults").innerHTML=sorted.map(x=>`<div class="rank"><b>${esc(x.avatar)}</b><span>${esc(x.name)} — ${esc(x.message)}</span><strong>${x.delta>=0?"+":""}${x.delta} pts</strong></div>`).join("");
 }
  const me=d.results.find(x=>x.id===socket.id);
