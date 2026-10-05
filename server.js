@@ -238,10 +238,10 @@ s.on("host:next",()=>{
   const r=rooms.get(s.data.room);
   if(!r||r.host!==s.id||r.phase!=="reveal")return;
 
-  if([4,9,14].includes(r.index)){
-    startMinigame(r);
-    return;
-  }
+  if(r.index===4){
+  startMinigame(r);
+  return;
+}
 
   for(const p of r.players.values())p.pendingFreeze=false;
   r.index++;
