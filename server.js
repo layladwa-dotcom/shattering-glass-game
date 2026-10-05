@@ -104,7 +104,6 @@ const type=r.index===4?"target":r.index===9?"coinflip":"heist";
   targetChoices:type==="target"?[1,2,3,4,5]:null,
   choices:type==="coinflip"?["heads","tails"]:type==="heist"?["A","B","C"]:null
  });
-}
  emit(r);
  r.timer=setTimeout(()=>resolveMinigame(r),info.duration*1000);
 }
