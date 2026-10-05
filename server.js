@@ -92,7 +92,7 @@ function resetScores(r){
 
 function startMinigame(r){
  clearTimeout(r.timer);
- const type=MINIGAMES[Math.floor(Math.random()*MINIGAMES.length)];
+const type=r.index===4?"target":r.index===9?"coinflip":"heist";
  const info=MINIGAME_INFO[type];
  r.phase="minigame";
  r.minigame={type,name:info.name,desc:info.desc,duration:info.duration,started:Date.now(),choices:new Map(),resolved:false};
