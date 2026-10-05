@@ -99,13 +99,29 @@ socket.on("answer:result",r=>{
 });
 
 socket.on("question:reveal",d=>{
- clearInterval(timer);
- $("hostPhase").textContent="ANSWER REVEALED";$("nextQuestion").disabled=false;
- [...$("hostChoices").children].forEach((x,i)=>x.classList.toggle("correct",i===d.answer));
- [...$("playerChoices").children].forEach((x,i)=>{x.disabled=true;x.classList.toggle("correct",i===d.answer);if(selected===i&&i!==d.answer)x.classList.add("wrong")});
- $("answerFeedback").textContent=d.explanation;
-});
+  clearInterval(timer);
 
+  if($("hostPhase")) $("hostPhase").textContent="ANSWER REVEALED";
+  if($("nextQuestion")) $("nextQuestion").disabled=false;
+
+  if($("hostChoices")){
+    [...$("hostChoices").children].forEach((x,i)=>{
+      x.classList.toggle("correct",i===d.answer);
+    });
+  }
+
+  if($("playerChoices")){
+    [...$("playerChoices").children].forEach((x,i)=>{
+      x.disabled=true;
+      x.classList.toggle("correct",i===d.answer);
+      if(selected===i&&i!==d.answer)x.classList.add("wrong");
+    });
+  }
+
+  if($("answerFeedback")){
+    $("answerFeedback").textContent=d.explanation;
+  }
+});
 $("nextQuestion").onclick=()=>socket.emit("host:next");
 $("shopBtn").onclick=()=>{renderShop();$("shop").classList.remove("hidden")};
 $("closeShop").onclick=()=>$("shop").classList.add("hidden");
