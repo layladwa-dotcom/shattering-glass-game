@@ -45,7 +45,7 @@ socket.on("room:update",r=>{
   renderPlayers(r.players);
   renderBoard(r.players);
 
-  const me=r.players.find(p=>p.id===socket.id);
+  
 
 const me=r.players.find(p=>p.id===socket.id);
 
