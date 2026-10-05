@@ -51,10 +51,10 @@ socket.on("room:update",r=>{
   if($("playerScore")) $("playerScore").textContent=me.score;
   if($("playerCoins")) $("playerCoins").textContent=me.coins;
   if($("playerStreak")) $("playerStreak").textContent=me.streak+" 🔥";
-  if($("mgPlayerScore")) $("mgPlayerScore").textContent=me.score;
-  if($("mgPlayerCoins")) $("mgPlayerCoins").textContent=me.coins;
-  if($("mgPlayerStreak")) $("mgPlayerStreak").textContent=me.streak+" 🔥";
-  renderPowers(me);
+ if(me){
+  if($("mgPlayerCoins")) $("mgPlayerCoins").textContent=me.totalCoins;
+  if($("playerScore")) $("playerScore").textContent=me.score;
+  if($("playerCoins")) $("playerCoins").textContent=me.totalCoins;
 }
 });
 
